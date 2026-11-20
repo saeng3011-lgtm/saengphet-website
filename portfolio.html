@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="lo">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ແບບຕົວຢ່າງຜົນງານ - Mr. Saengphet Sansuliphonexay</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Lao:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Dark Navy Category Header -->
+    <header class="category-banner-header">
+        <div class="container banner-inner">
+            <a href="index.html" id="backHomeBtn" class="sample-badge-btn">← ແບບຕົວຢ່າງ / ໜ້າຫຼັກ</a>
+            <div class="category-title-box" id="categoryBannerTitle">Graphic Designer</div>
+            <div class="banner-spacer"></div>
+        </div>
+    </header>
+
+    <!-- Category Switcher Bar -->
+    <nav class="category-nav">
+        <div class="container nav-inner">
+            <div class="category-tabs" id="categoryTabs">
+                <a href="index.html" class="cat-tab" data-cat="all">ທັງໝົດ (All)</a>
+                <a href="portfolio.html?cat=graphic" class="cat-tab" data-cat="graphic">Graphic Designer</a>
+                <a href="portfolio.html?cat=typing" class="cat-tab" data-cat="typing">ພິມເອກະສານ (ລາວ-ຈີນ-ອັງກິດ)</a>
+                <a href="portfolio.html?cat=video" class="cat-tab" data-cat="video">ຕັດຕໍ່ວິດີໂອ & Motion</a>
+                <a href="portfolio.html?cat=web" class="cat-tab" data-cat="web">ອອກແບບເວັບໄຊ້ & UI</a>
+            </div>
+            <div id="adminBadgeContainer"></div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container main-content">
+        <!-- Admin Upload & WhatsApp Config Panel -->
+        <div id="adminControlPanel" class="admin-panel hidden">
+            <div class="admin-panel-info">
+                <span class="admin-dot"></span>
+                <span>ໂໝດແອັດມິນ — ໝວດ: <strong id="adminCurrentCatLabel">Graphic Designer</strong> | WhatsApp: <strong id="currentWaDisplay">8562099999999</strong></span>
+            </div>
+            <div class="admin-actions-group">
+                <button type="button" class="btn-wa-config" onclick="openWaConfigModal()">
+                    ⚙ ຕັ້ງຄ່າເບີ WhatsApp
+                </button>
+                <button type="button" class="btn-upload-trigger" onclick="openUploadModal()">
+                    + Upload ຜົນງານໃນໝວດນີ້
+                </button>
+            </div>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state hidden">
+            <div class="empty-icon">🎨</div>
+            <h3>ຍັງບໍ່ທັນມີຜົນງານໃນໝວດນີ້</h3>
+            <p id="emptySubtext">ກະລຸນາເລືອກເບິ່ງໝວດອື່ນ ຫຼື ລໍຖ້າການອັບໂຫຼດຜົນງານໃໝ່</p>
+        </div>
+
+        <!-- Dynamic 2-Column Grid -->
+        <div id="portfolioGrid" class="portfolio-grid"></div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <div class="container footer-inner">
+            <div>
+                <strong>Mr. Saengphet Sansuliphonexay</strong> — ຮັບງານ Freelancer , ພິມ ແລະ ອອກແບບທຸກຊະນິດ (ລາວ, ຈີນ, ອັງກິດ)
+            </div>
+            <div class="footer-links">
+                <span id="adminToggleLink"></span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Admin Upload Modal -->
+    <div id="uploadModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>ອັບໂຫຼດຜົນງານໃໝ່ (Upload Portfolio)</h2>
+                <button type="button" class="modal-close" onclick="closeUploadModal()">✕</button>
+            </div>
+            <form id="uploadForm" class="modal-body">
+                <div class="form-group">
+                    <label for="workCategory">ໝວດໝູ່ຜົນງານ *</label>
+                    <select id="workCategory" required>
+                        <option value="graphic">Graphic Designer</option>
+                        <option value="typing">ພິມເອກະສານ (ລາວ-ຈີນ-ອັງກິດ)</option>
+                        <option value="video">ຕັດຕໍ່ວິດີໂອ & Motion</option>
+                        <option value="web">ອອກແບບເວັບໄຊ້ & UI</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="workTitle">ຊື່ຜົນງານ / ລາຍລະອຽດຫຍໍ້ *</label>
+                    <input type="text" id="workTitle" placeholder="ຕົວຢ່າງ: ອອກແບບໂປສເຕີໂຄສະນາ" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="workPrice">ກຳນົດລາຄາ (Price) *</label>
+                    <input type="text" id="workPrice" placeholder="ຕົວຢ່າງ: 150,000 ກີບ" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="workFile">ເລືອກໄຟລ໌ ຮູບພາບ ຫຼື ວິດີໂອ (JPG, PNG, MP4, WebM) *</label>
+                    <div class="file-drop-area" id="fileDropArea">
+                        <input type="file" id="workFile" accept="image/*,video/*" required>
+                        <div class="file-drop-msg" id="fileDropMsg">
+                            <strong>ກົດເພື່ອເລືອກໄຟລ໌</strong> ຫຼື ລາກໄຟລ໌ມາວາງໃສ່ບ່ອນນີ້<br>
+                            <small>ຮອງຮັບທັງໄຟລ໌ຮູບພາບ ແລະ ໄຟລ໌ວິດີໂອ</small>
+                        </div>
+                    </div>
+                    <div id="filePreviewContainer" class="file-preview hidden"></div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeUploadModal()">ຍົກເລີກ</button>
+                    <button type="submit" class="btn-submit" id="submitUploadBtn">ບັນທຶກ ແລະ ອັບໂຫຼດ</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- WhatsApp Number Configuration Modal (Admin Only) -->
+    <div id="waConfigModal" class="modal-backdrop hidden">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h2>ຕັ້ງຄ່າເບີ WhatsApp ຮັບງານ</h2>
+                <button type="button" class="modal-close" onclick="closeWaConfigModal()">✕</button>
+            </div>
+            <form id="waConfigForm" class="modal-body">
+                <div class="form-group">
+                    <label for="waPhoneInput">ເບີ WhatsApp (ໃສ່ລະຫັດປະເທດນຳ ບໍ່ຕ້ອງໃສ່ + ຫຼື ຊ່ອງຫວ່າງ)</label>
+                    <input type="text" id="waPhoneInput" placeholder="ຕົວຢ່າງ: 8562055512345" required>
+                    <small class="help-text">ເມື່ອລູກຄ້າກົດປຸ່ມ "ສົນໃຈ / ກົດສັ່ງແບບນີ້" ລະບົບຈະສົ່ງຊື່ຜົນງານ, ໝວດໝູ່, ລາຄາ ແລະ ລິ້ງໜ້າເວັບໄປຫາເບີນີ້ທັນທີ.</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-cancel" onclick="closeWaConfigModal()">ຍົກເລີກ</button>
+                    <button type="submit" class="btn-submit">ບັນທຶກເບີ WhatsApp</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lightbox Modal -->
+    <div id="viewModal" class="modal-backdrop hidden">
+        <div class="modal-card modal-view-card">
+            <div class="modal-header">
+                <h2 id="viewModalTitle">ລາຍລະອຽດຜົນງານ</h2>
+                <button type="button" class="modal-close" onclick="closeViewModal()">✕</button>
+            </div>
+            <div class="modal-body view-modal-body">
+                <div id="viewMediaContainer" class="view-media-box"></div>
+                <div class="view-details-bar">
+                    <div>
+                        <span class="badge-cat" id="viewModalCat">Graphic Designer</span>
+                        <div class="view-price" id="viewModalPrice">ລາຄາ: 150,000 ກີບ</div>
+                    </div>
+                    <button type="button" class="btn-interest-lg" id="viewModalInterestBtn">
+                        💬 ສົນໃຈແບບນີ້ / ສົ່ງໄປ WhatsApp (0 ຄັ້ງ)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
