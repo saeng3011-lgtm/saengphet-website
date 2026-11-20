@@ -133,7 +133,6 @@ async function getAllWorks() {
   const merged = [...visibleDefaults];
 
   for (const item of localWorks) {
-    // ກອງລາຍການ local ເກົ່າທີ່ເປັນ data:image/video ແລ້ວຊ້ຳກັບ DEFAULT_WORKS ອອກເພື່ອບໍ່ໃຫ້ເປັນກາດເປົ່າ
     const isLegacyBrokenLocal =
       item.id &&
       !item.id.startsWith("work-") &&
@@ -208,7 +207,23 @@ function triggerInterest(work) {
   window.open(waUrl, "_blank", "noopener,noreferrer");
 }
 
-// ສ້າງໄຟລ໌ app.js ໃໝ່ໃຫ້ແອັດມິນດາວໂຫຼດໄປອັບໂຫຼດຂຶ້ນ GitHub ໄດ້ເອງ
+function resolveSafeMediaSrc(rawSrc) {
+  if (!rawSrc || typeof rawSrc !== "string") return "";
+  if (
+    rawSrc.startsWith("data:") ||
+    rawSrc.startsWith("blob:") ||
+    rawSrc.startsWith("http://") ||
+    rawSrc.startsWith("https://")
+  ) {
+    return rawSrc;
+  }
+  try {
+    return encodeURI(rawSrc);
+  } catch (e) {
+    return rawSrc;
+  }
+}
+
 async function downloadUpdatedAppJs() {
   const works = await getAllWorks();
   const waNumber = getWhatsAppNumber();
@@ -322,6 +337,7 @@ function openViewModal(work) {
 
   const counts = getInterestCounts();
   const count = counts[work.id] || 0;
+  const safeSrc = resolveSafeMediaSrc(work.mediaSrc);
 
   if (titleEl) titleEl.textContent = work.title;
   if (catEl) catEl.textContent = CATEGORY_LABELS[work.category] || work.category;
@@ -329,9 +345,16 @@ function openViewModal(work) {
 
   if (mediaBox) {
     if (work.mediaType === "video") {
-      mediaBox.innerHTML = `<video src="${work.mediaSrc}" controls autoplay playsinline></video>`;
+      mediaBox.innerHTML = `
+        <div style="width:100%;display:flex;flex-direction:column;align-items:center;gap:10px;">
+          <video src="${safeSrc}" controls autoplay playsinline preload="metadata" style="max-width:100%;max-height:58vh;"></video>
+          <a href="${safeSrc}" target="_blank" rel="noopener noreferrer" style="color:#93c5fd;font-size:0.85rem;text-decoration:underline;">
+            ເປີດໄຟລ໌ວິດີໂອໃນແທັບໃໝ່
+          </a>
+        </div>
+      `;
     } else {
-      mediaBox.innerHTML = `<img src="${work.mediaSrc}" alt="${work.title}">`;
+      mediaBox.innerHTML = `<img src="${safeSrc}" alt="${work.title}">`;
     }
   }
 
@@ -439,6 +462,7 @@ async function renderPortfolio() {
 
     const catLabel = CATEGORY_LABELS[work.category] || work.category;
     const count = counts[work.id] || 0;
+    const safeSrc = resolveSafeMediaSrc(work.mediaSrc);
 
     const deleteBtnHtml = adminMode
       ? `<button type="button" class="btn-delete-work" title="ລົບຜົນງານ" aria-label="ລົບຜົນງານ">✕</button>`
@@ -449,8 +473,8 @@ async function renderPortfolio() {
       : "";
 
     const mediaHtml = work.mediaType === "video"
-      ? `<video src="${work.mediaSrc}" muted playsinline preload="metadata"></video>${videoBadgeHtml}`
-      : `<img src="${work.mediaSrc}" alt="${work.title}" loading="lazy">`;
+      ? `<video src="${safeSrc}" muted playsinline preload="metadata"></video>${videoBadgeHtml}`
+      : `<img src="${safeSrc}" alt="${work.title}" loading="lazy">`;
 
     card.innerHTML = `
       <span class="work-cat-badge">${catLabel}</span>
