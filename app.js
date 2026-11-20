@@ -1,537 +1,402 @@
+// ==========================================
+// ຂໍ້ມູນກາງສຳລັບລູກຄ້າທຸກຄົນ (ອັບເດດອັດຕະໂນມັດເມື່ອດາວໂຫຼດ app.js ຈາກໂໝດແອັດມິນ)
+// ==========================================
+const DEFAULT_WHATSAPP = "8562055542701";
+
+const DEFAULT_WORKS = [
+  {
+    id: "work-graduation-party",
+    title: "ງານລ້ຽງຮຽນຈົບ",
+    category: "video",
+    price: "20,000 ກີບ",
+    mediaType: "video",
+    mediaSrc: "./ງານລ້ຽງຮຽນຈົບ.mp4",
+    description: "ຜົນງານຕັດຕໍ່ວິດີໂອງານລ້ຽງຮຽນຈົບ"
+  }
+];
+
 const CATEGORY_LABELS = {
-    all: 'ທັງໝົດ (All Works)',
-    graphic: 'Graphic Designer',
-    typing: 'ພິມເອກະສານ (ລາວ-ຈີນ-ອັງກິດ)',
-    video: 'ຕັດຕໍ່ວິດີໂອ & Motion',
-    web: 'ອອກແບບເວັບໄຊ້ & UI'
+  all: "ທັງໝົດ (All)",
+  graphic: "Graphic Designer",
+  typing: "ພິມເອກະສານ (ລາວ-ຈີນ-ອັງກິດ)",
+  video: "ຕັດຕໍ່ວິດີໂອ & Motion",
+  web: "ອອກແບບເວັບໄຊ້ & UI"
 };
 
-const DB_NAME = 'SaengphetPortfolioDB';
+const DB_NAME = "SaengphetPortfolioDB";
 const DB_VERSION = 1;
-const STORE_NAME = 'works';
-const WA_STORAGE_KEY = 'saengphet_whatsapp_number';
-const DEFAULT_WA_NUMBER = '8562099999999';
+const STORE_NAME = "works";
 
-const urlParams = new URLSearchParams(window.location.search);
-const isAdmin = urlParams.get('admin') === 'saengphet';
-const currentCat = urlParams.get('cat') || 'all';
+function isAdminMode() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get("admin") === "saengphet";
+}
 
-let dbInstance = null;
+function normalizePhone(raw) {
+  const digits = (raw || "").replace(/\D/g, "");
+  if (digits.startsWith("020") && digits.length === 11) {
+    return "85620" + digits.slice(3);
+  }
+  if (digits.startsWith("20") && digits.length === 10) {
+    return "856" + digits;
+  }
+  return digits || DEFAULT_WHATSAPP;
+}
 
 function getWhatsAppNumber() {
-    const saved = localStorage.getItem(WA_STORAGE_KEY);
-    if (saved && saved.trim()) {
-        return saved.replace(/[^0-9]/g, '');
-    }
-    return DEFAULT_WA_NUMBER;
+  const saved = localStorage.getItem("saengphet_whatsapp");
+  return normalizePhone((saved && saved.trim()) ? saved.trim() : DEFAULT_WHATSAPP);
 }
 
-function setWhatsAppNumber(rawPhone) {
-    const cleaned = (rawPhone || '').replace(/[^0-9]/g, '');
-    if (!cleaned) return false;
-    localStorage.setItem(WA_STORAGE_KEY, cleaned);
-    return true;
+function setWhatsAppNumber(num) {
+  const normalized = normalizePhone(num);
+  if (normalized) {
+    localStorage.setItem("saengphet_whatsapp", normalized);
+  }
 }
 
-function buildWhatsAppOrderUrl(work) {
-    const phone = getWhatsAppNumber();
-    const catName = CATEGORY_LABELS[work.category] || work.category;
-    const isVideo = work.fileType && work.fileType.startsWith('video/');
-    const mediaTypeLabel = isVideo ? 'ວິດີໂອ (Video)' : 'ຮູບພາບ (Image)';
-    const pageUrl = window.location.href;
-
-    const message = [
-        'ສະບາຍດີ ທ່ານ ແສງເພັດ ສັນສຸລິພອນໄຊ (Mr. Saengphet)',
-        'ຂ້ອຍສົນໃຈຜົນງານ / ຕ້ອງການສັ່ງເຮັດແບບນີ້:',
-        '----------------------------------------',
-        `• ຊື່ຜົນງານ: ${work.title}`,
-        `• ໝວດໝູ່: ${catName}`,
-        `• ລາຄາທີ່ລະບຸ: ${work.price}`,
-        `• ປະເພດໄຟລ໌: ${mediaTypeLabel}`,
-        `• ລິ້ງໜ້າຜົນງານ: ${pageUrl}`,
-        '----------------------------------------',
-        'ກະລຸນາແຈ້ງລາຍລະອຽດເພີ່ມເຕີມໃຫ້ແດ່ครับ/ຄະ'
-    ].join('\n');
-
-    return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+function getHiddenDefaultIds() {
+  try {
+    return JSON.parse(localStorage.getItem("saengphet_hidden_defaults") || "[]");
+  } catch (e) {
+    return [];
+  }
 }
 
-function openDatabase() {
+function hideDefaultWork(id) {
+  const hidden = getHiddenDefaultIds();
+  if (!hidden.includes(id)) {
+    hidden.push(id);
+    localStorage.setItem("saengphet_hidden_defaults", JSON.stringify(hidden));
+  }
+}
+
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = (e) => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function getLocalWorks() {
+  try {
+    const db = await openDB();
     return new Promise((resolve, reject) => {
-        if (dbInstance) {
-            resolve(dbInstance);
-            return;
-        }
-        const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-        request.onupgradeneeded = (event) => {
-            const db = event.target.result;
-            if (!db.objectStoreNames.contains(STORE_NAME)) {
-                const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-                store.createIndex('category', 'category', { unique: false });
-                store.createIndex('createdAt', 'createdAt', { unique: false });
-            }
-        };
-
-        request.onsuccess = (event) => {
-            dbInstance = event.target.result;
-            resolve(dbInstance);
-        };
-
-        request.onerror = (event) => {
-            console.error('IndexedDB Error:', event.target.error);
-            reject(event.target.error);
-        };
+      const tx = db.transaction(STORE_NAME, "readonly");
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
     });
+  } catch (err) {
+    return [];
+  }
 }
 
 async function getAllWorks() {
-    const db = await openDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readonly');
-        const store = tx.objectStore(STORE_NAME);
-        const request = store.getAll();
-        request.onsuccess = () => {
-            const items = request.result || [];
-            items.sort((a, b) => b.createdAt - a.createdAt);
-            resolve(items);
+  const hiddenIds = getHiddenDefaultIds();
+  const visibleDefaults = DEFAULT_WORKS.filter((w) => !hiddenIds.includes(w.id));
+  const localWorks = await getLocalWorks();
+  const merged = [...visibleDefaults];
+
+  for (const item of localWorks) {
+    const idx = merged.findIndex((w) => w.id === item.id);
+    if (idx >= 0) {
+      merged[idx] = item;
+    } else {
+      merged.unshift(item);
+    }
+  }
+  return merged;
+}
+
+async function saveWorkToLocal(work) {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const req = store.put(work);
+    req.onsuccess = () => resolve();
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function deleteWork(id) {
+  if (id.startsWith("work-")) {
+    hideDefaultWork(id);
+  }
+  try {
+    const db = await openDB();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, "readwrite");
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.delete(id);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    // ignore if not in IndexedDB
+  }
+}
+
+function buildWhatsAppLink(work) {
+  const phone = getWhatsAppNumber();
+  const catLabel = CATEGORY_LABELS[work.category] || work.category;
+  const priceText = work.price ? `ລາຄາ: ${work.price}` : "";
+  const message = [
+    "ສະບາຍດີครับ/ຄະ ສົນໃຈສັ່ງງານແບບນີ້:",
+    `• ຊື່ຜົນງານ: ${work.title}`,
+    `• ໝວດໝູ່: ${catLabel}`,
+    priceText ? `• ${priceText}` : ""
+  ].filter(Boolean).join("\n");
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+}
+
+// ສ້າງໄຟລ໌ app.js ໃໝ່ໃຫ້ແອັດມິນດາວໂຫຼດໄປອັບໂຫຼດຂຶ້ນ GitHub ໄດ້ເອງ
+async function downloadUpdatedAppJs() {
+  const works = await getAllWorks();
+  const waNumber = getWhatsAppNumber();
+
+  // ແນະນຳໃຫ້ໄຟລ໌ມີເດຍຢູ່ໃນ GitHub Repository ເຊັ່ນ ./ຊື່ໄຟລ໌.mp4
+  const cleanWorksForPublish = works.map((w) => {
+    const isDataUrl = typeof w.mediaSrc === "string" && w.mediaSrc.startsWith("data:");
+    return {
+      id: w.id,
+      title: w.title,
+      category: w.category,
+      price: w.price || "",
+      mediaType: w.mediaType || "image",
+      mediaSrc: isDataUrl
+        ? `./${w.fileName || "uploaded-media.mp4"}`
+        : w.mediaSrc,
+      description: w.description || ""
+    };
+  });
+
+  const currentScriptEl = document.currentScript || Array.from(document.scripts).find((s) => s.src && s.src.includes("app.js"));
+  let tailCode = "";
+  if (currentScriptEl && currentScriptEl.src) {
+    try {
+      const res = await fetch(currentScriptEl.src + "?t=" + Date.now());
+      const fullText = await res.text();
+      const marker = "// === RUNTIME_START ===";
+      const idx = fullText.indexOf(marker);
+      if (idx !== -1) {
+        tailCode = fullText.slice(idx);
+      }
+    } catch (e) {
+      tailCode = "";
+    }
+  }
+
+  const headerCode = `const DEFAULT_WHATSAPP = ${JSON.stringify(waNumber)};\n\nconst DEFAULT_WORKS = ${JSON.stringify(cleanWorksForPublish, null, 2)};\n\n`;
+  const finalContent = tailCode ? (headerCode + tailCode) : null;
+
+  if (!finalContent) {
+    alert("ກະລຸນາກັອບປີ້ຂໍ້ມູນນີ້ໄປໃສ່ໃນ DEFAULT_WORKS:\n" + JSON.stringify(cleanWorksForPublish, null, 2));
+    return;
+  }
+
+  const blob = new Blob([finalContent], { type: "application/javascript;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "app.js";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  alert(
+    "ດາວໂຫຼດໄຟລ໌ app.js ທີ່ອັບເດດແລ້ວສຳເລັດ!\n" +
+    "1. ຫາກມີໄຟລ໌ຮູບ/ວິດີໂອໃໝ່ ໃຫ້ອັບໂຫຼດໄຟລ໌ນັ້ນຂຶ້ນ GitHub Repository 'saengphet-website' ພ້ອມກັນ\n" +
+    "2. ອັບໂຫຼດໄຟລ໌ app.js ນີ້ໄປວາງທັບໃນ GitHub Repository 'saengphet-website'\n" +
+    "3. ລໍຖ້າ 1-2 ນາທີ ລູກຄ້າທຸກເຄື່ອງຈະເຫັນທັນທີ!"
+  );
+}
+
+// === RUNTIME_START ===
+function renderWorksGrid(container, works, adminMode) {
+  if (!container) return;
+  container.innerHTML = "";
+
+  if (!works || works.length === 0) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">📂</div>
+        <h3>ຍັງບໍ່ທັນມີຜົນງານໃນໝວດນີ້</h3>
+        <p>ກະລຸນາລໍຖ້າການອັບເດດຜົນງານຈາກຜູ້ໃຫ້ບໍລິການ</p>
+      </div>
+    `;
+    return;
+  }
+
+  works.forEach((work) => {
+    const card = document.createElement("div");
+    card.className = "work-card";
+
+    let mediaHtml = "";
+    if (work.mediaType === "video") {
+      mediaHtml = `
+        <video controls playsinline preload="metadata" class="work-media">
+          <source src="${work.mediaSrc}" type="video/mp4">
+          ບໍ່ສາມາດຫຼິ້ນວິດີໂອໄດ້
+        </video>
+      `;
+    } else if (work.mediaSrc) {
+      mediaHtml = `<img src="${work.mediaSrc}" alt="${work.title}" class="work-media" loading="lazy">`;
+    }
+
+    const waLink = buildWhatsAppLink(work);
+    const catLabel = CATEGORY_LABELS[work.category] || work.category;
+
+    const deleteBtnHtml = adminMode
+      ? `<button type="button" class="btn-delete" data-id="${work.id}">ລົບ</button>`
+      : "";
+
+    card.innerHTML = `
+      <div class="work-media-wrap">${mediaHtml}</div>
+      <div class="work-body">
+        <span class="work-category">${catLabel}</span>
+        <h3 class="work-title">${work.title}</h3>
+        ${work.price ? `<p class="work-price">${work.price}</p>` : ""}
+        <div class="work-actions">
+          <a href="${waLink}" target="_blank" rel="noopener noreferrer" class="btn-whatsapp">
+            ສົນໃຈ / ກົດສັ່ງແບບນີ້ (WhatsApp)
+          </a>
+          ${deleteBtnHtml}
+        </div>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+
+  if (adminMode) {
+    container.querySelectorAll(".btn-delete").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const id = btn.getAttribute("data-id");
+        await deleteWork(id);
+        window.dispatchEvent(new Event("saengphet:works-updated"));
+      });
+    });
+  }
+}
+
+function injectAdminPublishButton() {
+  const targetParent =
+    document.getElementById("setWhatsAppBtn")?.parentElement ||
+    document.getElementById("uploadForm")?.parentElement ||
+    document.querySelector(".admin-controls, .admin-bar, header, main");
+
+  if (!targetParent || document.getElementById("publishAppJsBtn")) return;
+
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.id = "publishAppJsBtn";
+  btn.className = "btn-publish-github";
+  btn.textContent = "⬇ ດາວໂຫຼດ app.js ເພື່ອອັບຂຶ້ນ GitHub";
+  btn.style.cssText = "margin: 8px 4px; padding: 10px 14px; background: #198754; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 600;";
+  btn.addEventListener("click", downloadUpdatedAppJs);
+
+  targetParent.appendChild(btn);
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  const adminMode = isAdminMode();
+  const gridEl =
+    document.getElementById("worksGrid") ||
+    document.getElementById("portfolioGrid") ||
+    document.querySelector(".works-grid, .portfolio-grid");
+
+  let activeCategory = "all";
+
+  if (adminMode) {
+    injectAdminPublishButton();
+  }
+
+  async function refreshView() {
+    const allWorks = await getAllWorks();
+    const filtered = activeCategory === "all"
+      ? allWorks
+      : allWorks.filter((w) => w.category === activeCategory);
+    renderWorksGrid(gridEl, filtered, adminMode);
+  }
+
+  document.querySelectorAll("[data-category]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      activeCategory = btn.getAttribute("data-category") || "all";
+      document.querySelectorAll("[data-category]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      refreshView();
+    });
+  });
+
+  const waBtn = document.getElementById("setWhatsAppBtn") || document.querySelector("[data-action='set-whatsapp']");
+  if (waBtn && adminMode) {
+    waBtn.style.display = "";
+    waBtn.addEventListener("click", () => {
+      const current = getWhatsAppNumber();
+      const input = prompt("ໃສ່ເບີ WhatsApp (ເຊັ່ນ 8562055542701):", current);
+      if (input !== null && input.trim()) {
+        setWhatsAppNumber(input.trim());
+        refreshView();
+        alert("ບັນທຶກເບີ WhatsApp ຮຽບຮ້ອຍແລ້ວ! ກົດປຸ່ມ 'ດາວໂຫຼດ app.js' ແລ້ວອັບຂຶ້ນ GitHub ເພື່ອໃຫ້ລູກຄ້າທຸກຄົນໃຊ້ເບີໃໝ່ໄດ້ທັນທີ.");
+      }
+    });
+  }
+
+  const uploadForm = document.getElementById("uploadForm") || document.getElementById("addWorkForm");
+  if (uploadForm && adminMode) {
+    uploadForm.style.display = "";
+    uploadForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const titleInput = uploadForm.querySelector("[name='title'], #workTitle");
+      const catInput = uploadForm.querySelector("[name='category'], #workCategory");
+      const priceInput = uploadForm.querySelector("[name='price'], #workPrice");
+      const fileInput = uploadForm.querySelector("input[type='file']");
+
+      const title = titleInput ? titleInput.value.trim() : "";
+      const category = catInput ? catInput.value : "video";
+      const price = priceInput ? priceInput.value.trim() : "";
+      const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+
+      if (!title || !file) {
+        alert("ກະລຸນາປ້ອນຊື່ຜົນງານ ແລະ ເລືອກໄຟລ໌");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async () => {
+        const work = {
+          id: "local-" + Date.now(),
+          title,
+          category,
+          price,
+          fileName: file.name,
+          mediaType: file.type.startsWith("video/") ? "video" : "image",
+          mediaSrc: reader.result
         };
-        request.onerror = () => reject(request.error);
+        await saveWorkToLocal(work);
+        uploadForm.reset();
+        await refreshView();
+        alert(
+          "ເພີ່ມຜົນງານລົງໜ້າແອັດມິນແລ້ວ!\n" +
+          "ໃຫ້ອັບໂຫຼດໄຟລ໌ '" + file.name + "' ຂຶ້ນ GitHub Repository ແລ້ວກົດປຸ່ມ 'ດາວໂຫຼດ app.js' ໄປວາງທັບໃນ GitHub ដើម្បីໃຫ້ລູກຄ້າທຸກຄົນເຫັນ."
+        );
+      };
+      reader.readAsDataURL(file);
     });
-}
+  }
 
-async function addWorkItem(item) {
-    const db = await openDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        const request = store.add(item);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-}
-
-async function deleteWorkItem(id) {
-    const db = await openDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        const request = store.delete(id);
-        request.onsuccess = () => resolve();
-        request.onerror = () => reject(request.error);
-    });
-}
-
-async function incrementInterestCount(id) {
-    const db = await openDatabase();
-    return new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE_NAME, 'readwrite');
-        const store = tx.objectStore(STORE_NAME);
-        const getReq = store.get(id);
-
-        getReq.onsuccess = () => {
-            const item = getReq.result;
-            if (!item) {
-                reject(new Error('Work not found'));
-                return;
-            }
-            item.interestCount = (item.interestCount || 0) + 1;
-            const putReq = store.put(item);
-            putReq.onsuccess = () => resolve(item.interestCount);
-            putReq.onerror = () => reject(putReq.error);
-        };
-        getReq.onerror = () => reject(getReq.error);
-    });
-}
-
-document.addEventListener('DOMContentLoaded', async () => {
-    setupNavigationAndHeaders();
-    setupAdminModeUI();
-    setupFileInputPreview();
-    setupUploadFormHandler();
-    setupWaConfigFormHandler();
-    await renderPortfolio();
+  window.addEventListener("saengphet:works-updated", refreshView);
+  refreshView();
 });
-
-function setupNavigationAndHeaders() {
-    const tabs = document.querySelectorAll('.cat-tab');
-    tabs.forEach(tab => {
-        const tabCat = tab.getAttribute('data-cat');
-        if (tabCat === currentCat) {
-            tab.classList.add('active');
-        } else {
-            tab.classList.remove('active');
-        }
-
-        if (isAdmin) {
-            const href = tab.getAttribute('href');
-            const separator = href.includes('?') ? '&' : '?';
-            tab.setAttribute('href', `${href}${separator}admin=saengphet`);
-        }
-    });
-
-    const bannerTitle = document.getElementById('categoryBannerTitle');
-    if (bannerTitle) {
-        bannerTitle.textContent = CATEGORY_LABELS[currentCat] || CATEGORY_LABELS.graphic;
-    }
-
-    const adminCurrentCatLabel = document.getElementById('adminCurrentCatLabel');
-    if (adminCurrentCatLabel) {
-        adminCurrentCatLabel.textContent = CATEGORY_LABELS[currentCat] || CATEGORY_LABELS.graphic;
-    }
-
-    const backHomeBtn = document.getElementById('backHomeBtn');
-    if (backHomeBtn && isAdmin) {
-        backHomeBtn.setAttribute('href', 'index.html?admin=saengphet');
-    }
-}
-
-function updateWaDisplays() {
-    const displays = document.querySelectorAll('#currentWaDisplay');
-    const waNum = getWhatsAppNumber();
-    displays.forEach(el => {
-        el.textContent = waNum;
-    });
-}
-
-function setupAdminModeUI() {
-    const adminControlPanel = document.getElementById('adminControlPanel');
-    const adminBadgeContainer = document.getElementById('adminBadgeContainer');
-    const adminToggleLink = document.getElementById('adminToggleLink');
-    const emptySubtext = document.getElementById('emptySubtext');
-
-    updateWaDisplays();
-
-    if (isAdmin) {
-        if (adminControlPanel) adminControlPanel.classList.remove('hidden');
-        if (adminBadgeContainer) {
-            adminBadgeContainer.innerHTML = `<span class="admin-status-pill">🔑 Admin: Saengphet</span>`;
-        }
-        if (adminToggleLink) {
-            const cleanUrl = window.location.pathname + (currentCat !== 'all' ? `?cat=${currentCat}` : '');
-            adminToggleLink.innerHTML = `<a href="${cleanUrl}" class="footer-admin-link">ອອກຈາກໂໝດແອັດມິນ (View as Customer)</a>`;
-        }
-        if (emptySubtext) {
-            emptySubtext.textContent = 'ກົດປຸ່ມ "+ Upload ຜົນງານໃໝ່" ດ້ານເທິງເພື່ອເພີ່ມຮູບພາບ ຫຼື ວິດີໂອ';
-        }
-    } else {
-        if (adminControlPanel) adminControlPanel.classList.add('hidden');
-        if (adminToggleLink) {
-            const adminUrl = window.location.pathname + (currentCat !== 'all' ? `?cat=${currentCat}&admin=saengphet` : '?admin=saengphet');
-            adminToggleLink.innerHTML = `<a href="${adminUrl}" class="footer-admin-link">Admin Login</a>`;
-        }
-    }
-}
-
-async function renderPortfolio() {
-    const grid = document.getElementById('portfolioGrid');
-    const emptyState = document.getElementById('emptyState');
-    if (!grid) return;
-
-    try {
-        const allWorks = await getAllWorks();
-        const filteredWorks = currentCat === 'all'
-            ? allWorks
-            : allWorks.filter(w => w.category === currentCat);
-
-        grid.innerHTML = '';
-
-        if (filteredWorks.length === 0) {
-            emptyState.classList.remove('hidden');
-            return;
-        }
-
-        emptyState.classList.add('hidden');
-
-        filteredWorks.forEach(work => {
-            const card = createWorkCardElement(work);
-            grid.appendChild(card);
-        });
-    } catch (err) {
-        console.error('Error rendering portfolio:', err);
-    }
-}
-
-function createWorkCardElement(work) {
-    const card = document.createElement('article');
-    card.className = 'work-card';
-    card.dataset.id = work.id;
-
-    const mediaUrl = URL.createObjectURL(work.fileBlob);
-    const isVideo = work.fileType && work.fileType.startsWith('video/');
-
-    if (isAdmin) {
-        const delBtn = document.createElement('button');
-        delBtn.type = 'button';
-        delBtn.className = 'btn-delete-work';
-        delBtn.title = 'ລົບຜົນງານນີ້';
-        delBtn.textContent = '✕';
-        delBtn.onclick = (e) => {
-            e.stopPropagation();
-            handleDeleteWork(work.id, work.title);
-        };
-        card.appendChild(delBtn);
-    }
-
-    const catBadge = document.createElement('span');
-    catBadge.className = 'work-cat-badge';
-    catBadge.textContent = CATEGORY_LABELS[work.category] || work.category;
-    card.appendChild(catBadge);
-
-    const mediaWrapper = document.createElement('div');
-    mediaWrapper.className = 'work-media-wrapper';
-    mediaWrapper.onclick = () => openViewModal(work, mediaUrl);
-
-    if (isVideo) {
-        const videoEl = document.createElement('video');
-        videoEl.src = mediaUrl;
-        videoEl.muted = true;
-        videoEl.playsInline = true;
-        videoEl.preload = 'metadata';
-        mediaWrapper.appendChild(videoEl);
-
-        const vidTag = document.createElement('span');
-        vidTag.className = 'video-indicator';
-        vidTag.textContent = '▶ ວິດີໂອ (ກົດເບິ່ງ)';
-        mediaWrapper.appendChild(vidTag);
-    } else {
-        const imgEl = document.createElement('img');
-        imgEl.src = mediaUrl;
-        imgEl.alt = work.title;
-        imgEl.loading = 'lazy';
-        mediaWrapper.appendChild(imgEl);
-    }
-    card.appendChild(mediaWrapper);
-
-    const infoRow = document.createElement('div');
-    infoRow.className = 'work-info-row';
-
-    const titleEl = document.createElement('div');
-    titleEl.className = 'work-title';
-    titleEl.textContent = work.title;
-    titleEl.title = work.title;
-
-    const priceEl = document.createElement('div');
-    priceEl.className = 'work-price-tag';
-    priceEl.textContent = `ລາຄາ: ${work.price}`;
-
-    infoRow.appendChild(titleEl);
-    infoRow.appendChild(priceEl);
-    card.appendChild(infoRow);
-
-    const interestBtn = document.createElement('button');
-    interestBtn.type = 'button';
-    interestBtn.className = 'btn-interest-bar';
-    const count = work.interestCount || 0;
-    interestBtn.innerHTML = `<span>ສົນໃຈ / ກົດສັ່ງແບບນີ້ (WhatsApp)</span> <span class="interest-count-badge">${count} ຄັ້ງ</span>`;
-
-    interestBtn.onclick = async () => {
-        const waUrl = buildWhatsAppOrderUrl(work);
-        // Open WhatsApp immediately so popup blockers don't block customer navigation
-        window.open(waUrl, '_blank', 'noopener,noreferrer');
-
-        try {
-            const newCount = await incrementInterestCount(work.id);
-            work.interestCount = newCount;
-            interestBtn.innerHTML = `<span>ສົນໃຈ / ກົດສັ່ງແບບນີ້ (WhatsApp)</span> <span class="interest-count-badge">${newCount} ຄັ້ງ</span>`;
-        } catch (err) {
-            console.error('Failed to update interest:', err);
-        }
-    };
-
-    card.appendChild(interestBtn);
-    return card;
-}
-
-function openWaConfigModal() {
-    if (!isAdmin) return;
-    const modal = document.getElementById('waConfigModal');
-    const input = document.getElementById('waPhoneInput');
-    if (input) input.value = getWhatsAppNumber();
-    if (modal) modal.classList.remove('hidden');
-}
-
-function closeWaConfigModal() {
-    const modal = document.getElementById('waConfigModal');
-    if (modal) modal.classList.add('hidden');
-}
-
-function setupWaConfigFormHandler() {
-    const form = document.getElementById('waConfigForm');
-    if (!form) return;
-
-    form.addEventListener('submit', (e) => {
-        e.preventDefault();
-        if (!isAdmin) return;
-        const phoneVal = document.getElementById('waPhoneInput').value;
-        if (!setWhatsAppNumber(phoneVal)) {
-            alert('ກະລຸນາປ້ອນເບີ WhatsApp ໃຫ້ຖືກຕ້ອງ');
-            return;
-        }
-        updateWaDisplays();
-        closeWaConfigModal();
-        alert('ບັນທຶກເບີ WhatsApp ຮຽບຮ້ອຍແລ້ວ!');
-    });
-}
-
-function openUploadModal() {
-    if (!isAdmin) return;
-    const modal = document.getElementById('uploadModal');
-    const catSelect = document.getElementById('workCategory');
-    if (catSelect && currentCat !== 'all') {
-        catSelect.value = currentCat;
-    }
-    modal.classList.remove('hidden');
-}
-
-function closeUploadModal() {
-    const modal = document.getElementById('uploadModal');
-    const form = document.getElementById('uploadForm');
-    const preview = document.getElementById('filePreviewContainer');
-    modal.classList.add('hidden');
-    if (form) form.reset();
-    if (preview) {
-        preview.innerHTML = '';
-        preview.classList.add('hidden');
-    }
-}
-
-function setupFileInputPreview() {
-    const fileInput = document.getElementById('workFile');
-    const preview = document.getElementById('filePreviewContainer');
-    if (!fileInput || !preview) return;
-
-    fileInput.addEventListener('change', () => {
-        const file = fileInput.files[0];
-        if (!file) {
-            preview.innerHTML = '';
-            preview.classList.add('hidden');
-            return;
-        }
-
-        const tempUrl = URL.createObjectURL(file);
-        preview.innerHTML = '';
-        preview.classList.remove('hidden');
-
-        if (file.type.startsWith('video/')) {
-            const vid = document.createElement('video');
-            vid.src = tempUrl;
-            vid.controls = true;
-            preview.appendChild(vid);
-        } else {
-            const img = document.createElement('img');
-            img.src = tempUrl;
-            preview.appendChild(img);
-        }
-    });
-}
-
-function setupUploadFormHandler() {
-    const form = document.getElementById('uploadForm');
-    if (!form) return;
-
-    form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        if (!isAdmin) return;
-
-        const category = document.getElementById('workCategory').value;
-        const title = document.getElementById('workTitle').value.trim();
-        const price = document.getElementById('workPrice').value.trim();
-        const fileInput = document.getElementById('workFile');
-        const file = fileInput.files[0];
-
-        if (!file || !title || !price) {
-            alert('ກະລຸນາປ້ອນຂໍ້ມູນ ແລະ ເລືອກໄຟລ໌ໃຫ້ຄົບຖ້ວນ');
-            return;
-        }
-
-        const submitBtn = document.getElementById('submitUploadBtn');
-        submitBtn.disabled = true;
-        submitBtn.textContent = 'ກຳລັງບັນທຶກ...';
-
-        try {
-            const newWork = {
-                id: 'work_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7),
-                category: category,
-                title: title,
-                price: price,
-                fileType: file.type,
-                fileName: file.name,
-                fileBlob: file,
-                interestCount: 0,
-                createdAt: Date.now()
-            };
-
-            await addWorkItem(newWork);
-            closeUploadModal();
-            await renderPortfolio();
-        } catch (err) {
-            console.error('Upload error:', err);
-            alert('ເກີດຂໍ້ຜິດພາດໃນການບັນທຶກໄຟລ໌ ກະລຸນາລອງໃໝ່ອີກຄັ້ງ');
-        } finally {
-            submitBtn.disabled = false;
-            submitBtn.textContent = 'ບັນທຶກ ແລະ ອັບໂຫຼດ';
-        }
-    });
-}
-
-async function handleDeleteWork(id, title) {
-    if (!isAdmin) return;
-    const confirmed = confirm(`ທ່ານຕ້ອງການລົບຜົນງານ "${title}" ແທ້ບໍ່?`);
-    if (!confirmed) return;
-
-    try {
-        await deleteWorkItem(id);
-        await renderPortfolio();
-    } catch (err) {
-        console.error('Delete error:', err);
-        alert('ບໍ່ສາມາດລົບຜົນງານໄດ້');
-    }
-}
-
-function openViewModal(work, mediaUrl) {
-    const modal = document.getElementById('viewModal');
-    const titleEl = document.getElementById('viewModalTitle');
-    const mediaBox = document.getElementById('viewMediaContainer');
-    const catEl = document.getElementById('viewModalCat');
-    const priceEl = document.getElementById('viewModalPrice');
-    const interestBtn = document.getElementById('viewModalInterestBtn');
-
-    titleEl.textContent = work.title;
-    catEl.textContent = CATEGORY_LABELS[work.category] || work.category;
-    priceEl.textContent = `ລາຄາ: ${work.price}`;
-
-    mediaBox.innerHTML = '';
-    if (work.fileType && work.fileType.startsWith('video/')) {
-        const video = document.createElement('video');
-        video.src = mediaUrl;
-        video.controls = true;
-        video.autoplay = true;
-        mediaBox.appendChild(video);
-    } else {
-        const img = document.createElement('img');
-        img.src = mediaUrl;
-        img.alt = work.title;
-        mediaBox.appendChild(img);
-    }
-
-    const count = work.interestCount || 0;
-    interestBtn.textContent = `💬 ສົນໃຈແບບນີ້ / ສົ່ງໄປ WhatsApp (${count} ຄັ້ງ)`;
-    interestBtn.onclick = async () => {
-        const waUrl = buildWhatsAppOrderUrl(work);
-        window.open(waUrl, '_blank', 'noopener,noreferrer');
-        const updatedCount = await incrementInterestCount(work.id);
-        work.interestCount = updatedCount;
-        interestBtn.textContent = `💬 ສົນໃຈແບບນີ້ / ສົ່ງໄປ WhatsApp (${updatedCount} ຄັ້ງ)`;
-        await renderPortfolio();
-    };
-
-    modal.classList.remove('hidden');
-}
-
-function closeViewModal() {
-    const modal = document.getElementById('viewModal');
-    const mediaBox = document.getElementById('viewMediaContainer');
-    modal.classList.add('hidden');
-    if (mediaBox) mediaBox.innerHTML = '';
-}
