@@ -1,5 +1,6 @@
 /* ==========================================================================
    Mr. Saengphet Sansuliphonexay - Professional Portfolio Stylesheet
+   Responsive Background (Mobile / Tablet / Desktop - Portrait & Landscape)
    ========================================================================== */
 
 :root {
@@ -17,7 +18,7 @@
     --text-muted: #64748b;
     --border-color: #cbd5e1;
     --shadow-sm: 0 2px 6px rgba(15, 23, 42, 0.06);
-    --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.10);
+    --shadow-md: 0 8px 20px rgba(15, 23, 42, 0.12);
     --radius-sm: 6px;
     --radius-md: 10px;
 }
@@ -30,17 +31,61 @@
 
 body {
     font-family: 'Noto Sans Lao', 'Plus Jakarta Sans', sans-serif;
-    background-color: var(--bg-page);
-    background-image: linear-gradient(rgba(244,246,249,0.75), rgba(244,246,249,0.75)),url("./graduation.jpg");
-    background-size: cover;
-    background-position: center top;
-    background-attachment: fixed;
-    background-repeat: no-repeat;
+    background-color: #0f172a;
     color: var(--text-dark);
     line-height: 1.6;
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     flex-direction: column;
+    position: relative;
+    overflow-x: hidden;
+}
+
+/* ==========================================================================
+   Smart Responsive Background Layer (ແກ້ບັນຫາຮູບຕັດ ຫຼື ເຫຼືອຂອບດຳທຸກໜ້າຈໍ)
+   ຊັ້ນທີ 1 (::before): ຮູບຂະຫຍາຍເຕັມຈໍ + ມົວນຸ່ມ (Blurred Backdrop) ປິດຂອບວ່າງທັງຊ້າຍ-ຂວາ
+   ຊັ້ນທີ 2 (::after): ຮູບຫຼັກຊັດເຈນ ປັບຂະໜາດພໍດີຄົບຖ້ວນບໍ່ຕັດຫົວ/ຕັດຄົນ ທັງແນວຕັ້ງ ແລະ ແນວນອນ
+   ========================================================================== */
+body::before {
+    content: "";
+    position: fixed;
+    inset: -24px;
+    z-index: -2;
+    background-image: url("./graduation.jpg");
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    filter: blur(18px) brightness(0.85);
+    transform: scale(1.06);
+    pointer-events: none;
+}
+
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background-image:
+        linear-gradient(
+            180deg,
+            rgba(244, 246, 249, 0.72) 0%,
+            rgba(244, 246, 249, 0.65) 50%,
+            rgba(244, 246, 249, 0.78) 100%
+        ),
+        url("./graduation.jpg");
+    background-size: auto, contain;
+    background-position: center, center top;
+    background-repeat: no-repeat, no-repeat;
+    pointer-events: none;
+}
+
+/* ຖ້າເປີດໃນໂທລະສັບແນວຕັ້ງ (Portrait) ໃຫ້ຮູບພື້ນຫຼັງເຕັມພໍດີໜ້າຈໍ */
+@media (orientation: portrait) {
+    body::after {
+        background-size: auto, cover;
+        background-position: center, center top;
+    }
 }
 
 .container {
@@ -127,7 +172,9 @@ body {
 }
 
 .category-nav {
-    background-color: var(--bg-white);
+    background-color: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--border-color);
     position: sticky;
     top: 0;
@@ -190,7 +237,7 @@ body {
 }
 
 .admin-panel {
-    background-color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.96);
     border: 1.5px dashed var(--card-blue-accent);
     border-radius: var(--radius-md);
     padding: 14px 20px;
@@ -262,11 +309,18 @@ body {
 
 .section-header {
     margin-bottom: 22px;
+    padding: 12px 18px;
+    background-color: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(203, 213, 225, 0.85);
     display: flex;
     align-items: baseline;
     justify-content: space-between;
     flex-wrap: wrap;
     gap: 8px;
+    box-shadow: var(--shadow-sm);
 }
 
 .section-title {
@@ -277,7 +331,8 @@ body {
 
 .section-subtitle {
     font-size: 0.9rem;
-    color: var(--text-muted);
+    color: var(--text-dark);
+    font-weight: 500;
 }
 
 .portfolio-grid {
@@ -289,9 +344,9 @@ body {
 .work-card {
     background-color: var(--bg-white);
     border: 1.5px solid #475569;
-    border-radius: 4px;
+    border-radius: 6px;
     overflow: hidden;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
     display: flex;
     flex-direction: column;
     position: relative;
@@ -300,7 +355,7 @@ body {
 
 .work-card:hover {
     transform: translateY(-3px);
-    box-shadow: var(--shadow-md);
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.16);
 }
 
 .btn-delete-work {
@@ -441,7 +496,7 @@ body {
 }
 
 .empty-state {
-    background-color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.94);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-md);
     padding: 56px 24px;
